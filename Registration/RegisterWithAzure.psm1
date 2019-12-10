@@ -2,11 +2,9 @@
 # See LICENSE.txt in the project root for license information.
 
 <#
-
 This module contains functions for registering your environment and enabling marketplace syndication / usage reporting. 
 To run registration and activation functions you must have a public Azure subscription of any type.
 You must also have access to an account / directory that is an owner or contributor to that subscription.
-
 #>
 
 # Generate log file(s)
@@ -47,113 +45,67 @@ function New-RegistrationLogFile
 #region ConnectedScenario
 
 <#
-
 .SYNOPSIS
-
 Set-AzsRegistration can be used to register Azure Stack with Azure and enable/disable marketplace syndication and usage reporting.
 To run this function, you must have a public Azure subscription of any type. 
 You must also be logged in to Azure Powershell with an account that is an owner or contributor to that subscription.
-
 .DESCRIPTION
-
 Set-AzsRegistration uses the current Azure Powershell context and runs scripts already present in Azure Stack from the ERCS VM to connect your Azure Stack to Azure.
 You MUST be logged in to the Azure Powershell context that you want to register your Azure Stack with.
 After connecting with Azure, you can download products from the marketplace (See the documentation for more information: https://docs.microsoft.com/en-us/azure/azure-stack/azure-stack-download-azure-marketplace-item).
 Running this script with default parameters will enable marketplace syndication and usage data will default to being reported to Azure.
 NOTE: Default billing model is 'Development' and is only usable for proof of concept builds.
 To disable syndication or usage reporting see examples below.
-
 This script will create the following resources by default:
 - A service principal to perform resource actions
 - A resource group in Azure (if needed)
 - A registration resource in the created resource group in Azure
 - An activation resource group and resource in Azure Stack
-
 See documentation for more detail: https://docs.microsoft.com/en-us/azure/azure-stack/azure-stack-register
-
 .PARAMETER PrivilegedEndpointCredential
-
 Powershell object that contains credential information i.e. user name and password.The Azure Stack administrator has access to the Privileged Endpoint VM (also known as Emergency Console) to call whitelisted cmdlets and scripts.
 If not supplied script will request manual input of username and password
-
 .PARAMETER PrivilegedEndpoint
-
 Privileged Endpoint VM that performs environment administration actions. Also known as Emergency Console VM.(Example: AzS-ERCS01 for the ASDK)
-
 .PARAMETER ResourceGroupName
-
 This will be the name of the resource group in Azure where the registration resource is stored. Defaults to "azurestack"
-
 .PARAMETER  ResourceGroupLocation
-
 The location where the resource group will be created. Defaults to "westcentralus"
-
 .PARAMETER AzureEnvironmentName
-
 The name of the Azure Environment where resources will be created. Defaults to "AzureCloud"
-
 .PARAMETER BillingModel
-
 The billing model that the subscription uses. Select from "Capacity","PayAsYouUse", and "Development". Defaults to "Development" which is usable for POC installments.
 Please see documentation for more information: https://docs.microsoft.com/en-us/azure/azure-stack/azure-stack-billing-and-chargeback
-
 .PARAMETER MarketplaceSyndicationEnabled
-
 This is a switch that determines if this registration will allow you to download products from the Azure Marketplace. Defaults to $true
-
 .PARAMETER UsageReportingEnabled
-
 This is a switch that determines if usage records are reported to Azure. Defaults to $true. Note: This cannot be disabled with billing model set to PayAsYouUse.
-
 .PARAMETER AgreementNumber
-
 Used when the billing model is set to capacity. You will need to provide a specific agreement number associated with your billing agreement.
-
 .PARAMETER RegistrationName
-
 The name of the registration resource to be created in Azure. A unique name is highly encouraged for those registering multiple environments.
-
 .EXAMPLE
-
 This example registers your AzureStack environment with Azure, enables syndication, and enables usage reporting to Azure.
-
 Set-AzsRegistration -PrivilegedEndpointCredential $PrivilegedEndpointCredential -PrivilegedEndpoint "Azs-ERCS01"
-
 .EXAMPLE
-
 This example registers your AzureStack environment with Azure, enables syndication, and enables usage reporting to Azure, and supplies a custom name.
-
 Set-AzsRegistration -PrivilegedEndpointCredential $PrivilegedEndpointCredential -PrivilegedEndpoint "Azs-ERCS01" -RegistrationName "AzsRegistration-TestEnvironment"
-
 .EXAMPLE
-
 This example registers your AzureStack environment with Azure, enables syndication, and disables usage reporting to Azure.
-
 Set-AzsRegistration -PrivilegedEndpointCredential $PrivilegedEndpointCredential -PrivilegedEndpoint "Azs-ERCS01" -BillingModel 'Capacity' -UsageReportingEnabled:$false -AgreementNumber $MyAgreementNumber
-
 .EXAMPLE
-
 This example registers your AzureStack environment with Azure, enables syndication and usage and gives a specific name to the resource group
-
 Set-AzsRegistration -PrivilegedEndpointCredential $PrivilegedEndpointCredential -PrivilegedEndpoint "Azs-ERCS02" -ResourceGroupName "ContosoStackRegistrations"
-
 .EXAMPLE
-
 This example disables syndication and disables usage reporting to Azure. Note that usage will still be collected, just not sent to Azure.
-
 Set-AzsRegistration -PrivilegedEndpointCredential $PrivilegedEndpointCredential -PrivilegedEndpoint "Azs-ERCS01" -BillingModel Capacity -MarketplaceSyndicationEnabled:$false -UsageReportingEnabled:$false -AgreementNumber $MyAgreementNumber
-
 .NOTES
-
 If you would like to un-Register with Azure by turning off marketplace syndication, disabling usage reporting, and removing the registration resource from Azure you can run Remove-AzsRegistration.
 Note that this will remove any downloaded marketplace products.
-
 If you would like to use a different subscription for registration you must first run Remove-AzsRegistration followed by Set-AzsRegistration after logging into the appropriate Azure Powershell context.
 This will remove any downloaded marketplace products and they will need to be re-downloaded.
-
 You MUST be logged in to Azure before attempting to use Set-AzsRegistration.
 It is very important to ensure you are logged in to the correct Azure Account in Powershell before running this function.
-
 #>
 function Set-AzsRegistration{
 [CmdletBinding()]
@@ -181,7 +133,7 @@ function Set-AzsRegistration{
                                             'CustomCloud'='westcentralus'}[$AzureContext.Environment.Name],
         
         [Parameter(Mandatory = $false)]
-        [ValidateSet('Capacity', 'PayAsYouUse', 'Development')]
+        [ValidateSet('Capacity', 'PayAsYouUse', 'Development','Custom')]
         [string] $BillingModel = 'Development',
 
         [Parameter(Mandatory = $false)]
@@ -192,7 +144,11 @@ function Set-AzsRegistration{
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNull()]
-        [string] $AgreementNumber
+        [string] $AgreementNumber,
+
+        [Parameter(Mandatory=$false)]
+        [ValidateNotNull()]
+        [string] $MsAssetTag
     )
     #requires -Version 4.0
     #requires -Modules @{ModuleName = "AzureRM.Profile" ; ModuleVersion = "1.0.4.4"} 
@@ -222,6 +178,7 @@ function Set-AzsRegistration{
             MarketplaceSyndicationEnabled = $MarketplaceSyndicationEnabled
             UsageReportingEnabled         = $UsageReportingEnabled
             AgreementNumber               = $AgreementNumber
+            MsAssetTag                    = $MsAssetTag
         }
         Log-Output "Get-RegistrationToken parameters: $(ConvertTo-Json $getTokenParams)"
         if (($BillingModel -eq 'Capacity') -and ($UsageReportingEnabled))
@@ -259,56 +216,33 @@ function Set-AzsRegistration{
 }
 
 <#
-
 .SYNOPSIS
-
 Remove-AzsRegistration can be used to disable syndication, disable usage reporting, and unregister your environment with Azure.
 To run this function, you must have previously run Set-AzsRegistration
 You must also be logged in to Azure Powershell with an account that is an owner or contributor to that subscription.
-
 .DESCRIPTION
-
 Remove-AzsRegistration uses the current Azure Powershell context and runs scripts already present in Azure Stack from the ERCS VM to remove a current registration from Azure.
 You MUST be logged in to the Azure Powershell context that you want to disassociate your environment from.
 You must have already run Set-AzsRegistration before running this function.
-
 .PARAMETER PrivilegedEndpointCredential
-
 Powershell object that contains credential information i.e. user name and password. The Azure Stack administrator has access to the JEA Computer (also known as Emergency Console) to call whitelisted cmdlets and scripts.
 If not supplied script will request manual input of username and password
-
 .PARAMETER PrivilegedEndpoint
-
 Privileged Endpoint VM that performs environment administration actions. Also known as Emergency Console VM.(Example: AzS-ERCS01 for the ASDK)
-
 .PARAMETER ResourceGroupName
-
 This is the name of the resource group in Azure where the registration resource has been created. Defaults to "azurestack"
-
 .PARAMETER  ResourceGroupLocation
-
 The location where the resource group has been created. Defaults to "westcentralus"
-
 .PARAMETER RegistrationName
-
 The name of the registration resource that was created in Azure. If you have a unique name you should supply it here for removing registration.
-
 .EXAMPLE
-
 This example unregisters your AzureStack environment with Azure.
-
 Remove-AzsRegistration -PrivilegedEndpointCredential $PrivilegedEndpointCredential -PrivilegedEndpoint $PrivilegedEndpoint
-
 .EXAMPLE
-
 This example unregisters your AzureStack environment with Azure by pointing to a specific registration
-
 Remove-AzsRegistration -PrivilegedEndpointCredential $PrivilegedEndpointCredential -PrivilegedEndpoint $PrivilegedEndpoint -RegistrationName "AzsRegistration-TestEnvironment"
-
 .NOTES
-
 It is very important to ensure you are logged in to the correct Azure Account in Powershell before running this function.
-
 #>
 function Remove-AzsRegistration{
 [CmdletBinding()]
@@ -401,50 +335,31 @@ function Remove-AzsRegistration{
 
 <#
 .SYNOPSIS
-
 Get-AzsRegistrationToken will generate a registration token from the input parameters.
-
 .DESCRIPTION
-
 Get-AzsRegistrationToken will use the BillingModel, MarketplaceSyndicationEnabled, UsageReportingEnabled, and AgreementNumber (if necessary) parameters to generate a registration token. 
 This token is used to enable / disable Azure Stack features such as Azure marketplace product syndication and Azure Stack usage reporting. 
 A registration token is required to call Register-AzsEnvironment. 
-
 .PARAMETER PrivilegedEndpointCredential
-
 Powershell object that contains credential information i.e. user name and password.The Azure Stack administrator has access to the privileged endpoint to call approved cmdlets and scripts.
 This parameter is mandatory and if not supplied then this function will request manual input of username and password
-
 .PARAMETER PrivilegedEndpoint
-
 The name of the VM that has permissions to perform approved powershell cmdlets and scripts. Usually has a name in the format of <ComputerName>-ERCSxx where <ComputerName>
 is the name of the machine and ERCS is followed by a number between 01 and 03. Example: Azs-ERCS01 (from the ASDK)
-
 .PARAMETER TokenOutputFilePath
-
 This parameter sets the output location for the registration token.
-
 .PARAMETER BillingModel
-
 The billing model that will be used for this environment. Select from "Capacity", and "Development". Defaults to "Development" which is usable for POC / ASDK installments.
 Please see documentation for more information: https://docs.microsoft.com/en-us/azure/azure-stack/azure-stack-billing-and-chargeback
-
 .PARAMETER AgreementNumber
-
 A valid agreement number must be provided if the 'capacity' BillingModel parameter is provided.
-
 .EXAMPLE
-
 This example generates a registration token for use in Register-AzsEnvironment and writes it to a txt file.
 $registrationToken = Get-AzsRegistrationToken -PrivilegedEndpointCredential $PrivilegedEndpointCredential -PrivilegedEndpoint $PrivilegedEndpoint -BillingModel Development -TokenOutputFilePath "C:\Temp\RegistrationToken.txt"
-
 .NOTES
-
 This function is designed to only be used in conjunction with Register-AzsEnvironment. This will not enable any Azure Stack marketplace syndication or usage reporting features. Example:
-
 $registrationToken = Get-AzsRegistrationToken -PrivilegedEndpointCredential $PrivilegedEndpointCredential -PrivilegedEndpoint $PrivilegedEndpoint -BillingModel Development -TokenOutputFilePath "C:\Temp\RegistrationToken.txt"
 Register-AzsEnvironment -PrivilegedEndpointCredential $PrivilegedEndpointCredential -PrivilegedEndpoint $PrivilegedEndpoint -RegistrationToken $registrationToken
-
 #>
 Function Get-AzsRegistrationToken{
 [CmdletBinding()]
@@ -456,7 +371,7 @@ Function Get-AzsRegistrationToken{
         [String] $PrivilegedEndpoint,
 
         [Parameter(Mandatory = $true)]
-        [ValidateSet('Capacity', 'Development')]
+        [ValidateSet('Capacity', 'Development','Custom')]
         [string] $BillingModel = 'Capacity',
 
         [Parameter(Mandatory = $false)]
@@ -471,7 +386,11 @@ Function Get-AzsRegistrationToken{
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNull()]
-        [string] $AgreementNumber
+        [string] $AgreementNumber,
+
+        [Parameter(Mandatory=$false)]
+        [ValidateNotNull()]
+        [string] $MsAssetTag
     )
     #requires -Version 4.0
     #requires -RunAsAdministrator
@@ -516,6 +435,7 @@ Function Get-AzsRegistrationToken{
         UsageReportingEnabled         = $UsageReportingEnabled
         AgreementNumber               = $AgreementNumber
         TokenOutputFilePath           = $TokenOutputFilePath
+        MsAssetTag                    = $MsAssetTag
     }
 
     Log-Output "Registration action params: $(ConvertTo-Json $params)"
@@ -545,56 +465,31 @@ Function Get-AzsRegistrationToken{
 
 <#
 .SYNOPSIS
-
 Register-AzsEnvironment will register your environment with Azure but will not enable syndication or usage reporting. This can be run on any computer with a connection to the internet.
-
 .DESCRIPTION
-
 Register-AzsEnvironment creates a resource group and registration resource in Azure.
 A registration token is required to register with Azure.
-
 .PARAMETER RegistrationToken
-
 The registration token created after running Get-AzsRegistrationToken. This contains BillingModel, marketplace syndication, and other important information.
-
 .PARAMETER AzureEnvironmentName
-
 The Azure environment that will be used to create registration resource. defaults to AzureCloud
-
 .PARAMETER ResourceGroupName
-
 The name of the resource group that will contain the registration resource. Defaults to 'azurestack'
-
 .PARAMETER ResourceGroupLocation
-
 The Azure location where the registration resource group will be created. Defaults to 'westcentralus'
-
 .PARAMETER RegistrationName
-
 The name of the registration resource to be created in Azure. A unique name is highly encouraged for those registering multiple environments.
-
 .EXAMPLE
-
 This example will register your Azure Stack environment with all default parameters.
-
 Register-AzsEnvironment -RegistrationToken $registrationToken
-
 .EXAMPLE
-
 This example will register your Azure Stack environment with a specific name for a resource group
-
 Register-AzsEnvironment -RegistrationToken $registrationToken -ResourceGroupName "ContosoRegistrations"
-
 .EXAMPLE
-
 This example will register your Azure Stack environment with a specific name for the registration resource
-
 Register-AzsEnvironment -RegistrationToken $registrationToken -RegistrationName "AzsRegistration-TestEnvironment"
-
 .NOTES
-
 This function will not enable marketplace syndication or usage reporting.
-
 #>
 Function Register-AzsEnvironment{
 [CmdletBinding()]
@@ -638,50 +533,28 @@ Function Register-AzsEnvironment{
 
 <#
 .SYNOPSIS
-
 UnRegister-AzsEnvironment will unregister your environment with Azure
-
 .DESCRIPTION
-
 UnRegister-AzsEnvironment removes the registration resource that was created in Azure during Register-AzsEnvironment
-
 .PARAMETER RegistrationToken
-
 The registration token created after running Get-AzsRegistrationToken. This contains information used to find the registration name
-
 .PARAMETER RegistrationName
-
 The name of the registration resource that was created during Register-AzsEnvironment.
-
 .PARAMETER AzureEnvironmentName
-
 The Azure environment that was used to create registration resource. defaults to AzureCloud
-
 .PARAMETER ResourceGroupName
-
 The name of the resource group that was created for the registration resource. Defaults to 'azurestack'
-
 .PARAMETER ResourceGroupLocation
-
 The Azure location where the registration resource group was created. Defaults to 'westcentralus'
-
 .EXAMPLE
-
 This example will unregister your Azure Stack environment using a registration token
-
 UnRegister-AzsEnvironment -RegistrationToken $registrationToken
-
 .EXAMPLE
-
 This exmple will unregister your Azure Stack environment using the registration name.
-
 UnRegister-AzsEnvironment -RegistrationName "AzsRegistration-TestEnvironment"
-
 .NOTES
-
 This should only be used if Register-AzsEnvironment was called previously. If you would like to disable syndication or usage reporting
 that was enabled during Set-AzsRegistration, then you will need to run Remove-AzsRegistration
-
 #>
 Function UnRegister-AzsEnvironment{
 [CmdletBinding()]
@@ -807,22 +680,14 @@ Function UnRegister-AzsEnvironment{
 
 <#
 .SYNOPSIS
-
 Retrieves the ActivationKey from the registration resource created during Register-AzsEnvironment
-
 .DESCRIPTION
-
 This gets an activation key with details on the parameters and environment information from the registration resource. 
 The activation key is used to create an activation record in AzureStack.
-
 .PARAMETER RegistrationName
-
 The neame of the registration resource created in Azure.
-
 .PARAMETER ResourceGroupName
-
 The name of the resource group where the registration resource was created.
-
 #>
 Function Get-AzsActivationKey{
 [CmdletBinding()]
@@ -905,27 +770,17 @@ Function Get-AzsActivationKey{
 
 <#
 .SYNOPSIS
-
 Creates the activation resource in Azure Stack
-
 .DESCRIPTION
-
 Creates an activation resource in Azure Stack in the resource group 'azurestack'. Also configures usage and syndication options. 
-
 .PARAMETER PrivilegedEndpointCredential
-
 Powershell object that contains credential information i.e. user name and password.The Azure Stack administrator has access to the privileged endpoint to call approved cmdlets and scripts.
 This parameter is mandatory and if not supplied then this function will request manual input of username and password
-
 .PARAMETER PrivilegedEndpoint
-
 The name of the VM that has permissions to perform approved powershell cmdlets and scripts. Usually has a name in the format of <ComputerName>-ERCSxx where <ComputerName>
 is the name of the machine and ERCS is followed by a number between 01 and 03. Example: Azs-ERCS01 (from the ASDK)
-
 .PARAMETER ActivationKey
-
 The text output of Get-AzsActivationKey. Contains information required to configure Azure Stack registration appropriately. 
-
 #>
 Function New-AzsActivationResource{
 [CmdletBinding()]
@@ -971,13 +826,9 @@ param(
 
 <#
 .SYNOPSIS
-
 De-activates Azure Stack in Disconnected Environments
-
 .DESCRIPTION
-
 Takes Azure Stack PrivilegedEndpoint and PrivilegedEndpoint credential as input, and deactivates the activation properties created by New-AzsActivationResource
-
 #>
 Function Remove-AzsActivationResource{
 [CmdletBinding()]
@@ -1032,9 +883,7 @@ Function Remove-AzsActivationResource{
 
 <#
 .SYNOPSIS
-
 Returns an object, RegistrationDetails, that contains a RegisrationToken and RegistrationName for use in Register-AzsEnvironment
-
 #>
 Function Get-RegistrationToken{
 [CmdletBinding()]
@@ -1046,7 +895,7 @@ Function Get-RegistrationToken{
         [String] $PrivilegedEndpoint,
         
         [Parameter(Mandatory = $false)]
-        [ValidateSet('Capacity', 'PayAsYouUse', 'Development')]
+        [ValidateSet('Capacity', 'PayAsYouUse', 'Development','Custom')]
         [string] $BillingModel = 'Development',
 
         [Parameter(Mandatory = $false)]
@@ -1066,7 +915,11 @@ Function Get-RegistrationToken{
         [PSObject] $StampInfo,
 
         [Parameter(Mandatory = $false)]
-        [String] $TokenOutputFilePath
+        [String] $TokenOutputFilePath,
+
+        [Parameter(Mandatory=$false)]
+        [ValidateNotNull()]
+        [string] $MsAssetTag
     )
 
     if (-not $StampInfo)
@@ -1082,7 +935,7 @@ Function Get-RegistrationToken{
         try
         {
             Log-Output "Creating registration token. Attempt $currentAttempt of $maxAttempt"
-            $registrationToken = Invoke-Command -Session $session -ScriptBlock { New-RegistrationToken -BillingModel $using:BillingModel -MarketplaceSyndicationEnabled:$using:MarketplaceSyndicationEnabled -UsageReportingEnabled:$using:UsageReportingEnabled -AgreementNumber $using:AgreementNumber }
+            $registrationToken = Invoke-Command -Session $session -ScriptBlock { New-RegistrationToken -BillingModel $using:BillingModel -MarketplaceSyndicationEnabled:$using:MarketplaceSyndicationEnabled -UsageReportingEnabled:$using:UsageReportingEnabled -AgreementNumber $using:AgreementNumber -MsAssetTag $using:MsAssetTag }
             if ($TokenOutputFilePath)
             {
                 Log-Output "Registration token will be written to: $TokenOutputFilePath"
@@ -1108,9 +961,7 @@ Function Get-RegistrationToken{
 
 <#
 .SYNOPSIS
-
 Uses information from Get-AzsRegistrationToken to create registration resource group and resource in Azure
-
 #>
 function New-RegistrationResource{
 [CmdletBinding()]
@@ -1215,9 +1066,7 @@ function New-RegistrationResource{
 
 <#
 .SYNOPSIS
-
 Configures bridge from AzureStack to Azure through use of a service principal.
-
 #>
 Function New-ServicePrincipal{
 [CmdletBinding()]
@@ -1262,11 +1111,8 @@ Function New-ServicePrincipal{
 }
 
 <#
-
 .SYNOPSIS
-
 Adds the provided subscription id to the custom RBAC role 'Registration Reader'
-
 #>
 function New-RBACAssignment{
     [CmdletBinding()]
@@ -1331,11 +1177,8 @@ function New-RBACAssignment{
     }
 
 <#
-
 .SYNOPSIS
-
 Activates features in AzureStack according to the properties in the activation key
-
 #>
 function Activate-AzureStack{
 [CmdletBinding()]
@@ -1372,11 +1215,8 @@ function Activate-AzureStack{
 }
 
 <#
-
 .SYNOPSIS
-
 DeActivates features in AzureStack
-
 #>
 function DeActivate-AzureStack{
 [CmdletBinding()]
@@ -1410,11 +1250,8 @@ function DeActivate-AzureStack{
 }
 
 <#
-
 .SYNOPSIS
-
 Gathers required data from current Azure Powershell context
-
 #>
 function Get-AzureAccountInfo{
 [CmdletBinding()]
@@ -1504,11 +1341,8 @@ function Get-AzureAccountInfo{
 }
 
 <#
-
 .SYNOPSIS
-
 Creates a powershell session with the PrivilegedEndpoint for registration actions
-
 #>
 function Initialize-PrivilegedEndpointSession{
 [CmdletBinding()]
@@ -1555,11 +1389,8 @@ function Initialize-PrivilegedEndpointSession{
 }
 
 <#
-
 .SYNOPSIS
-
 Registers the AzureStack resource provider in this environment
-
 #>
 function Register-AzureStackResourceProvider{
 [CmdletBinding()]
@@ -1601,11 +1432,8 @@ function Register-AzureStackResourceProvider{
 }
 
 <#
-
 .SYNOPSIS
-
 Removes the specified registration resource from Azure
-
 #>
 function Remove-RegistrationResource{
 [CmdletBinding()]
@@ -1654,11 +1482,8 @@ function Remove-RegistrationResource{
 }
 
 <#
-
 .SYNOPSIS
-
 Uses the current session with the PrivilegedEndpoint to determine the version of Azure Stack that has been deployed
-
 #>
 function Confirm-StampVersion{
 [CmdletBinding()]
@@ -1682,11 +1507,8 @@ function Confirm-StampVersion{
 }
 
 <#
-
 .SYNOPSIS
-
 Sets the resource group location based on the current AzureContext Environment name
-
 #>
 function Set-ResourceGroupLocation{
 [CmdletBinding()]
@@ -1736,11 +1558,8 @@ function Set-ResourceGroupLocation{
 }
 
 <#
-
 .SYNOPSIS
-
 Appends the text passed in to a log file and writes the verbose stream to the console.
-
 #>
 function Log-Output{
 [CmdletBinding()]
@@ -1754,11 +1573,8 @@ function Log-Output{
 }
 
 <#
-
 .SYNOPSIS
-
 Appends the error text passed in to a log file and writes the a warning verbose stream to the console.
-
 #>
 function Log-Warning{
 [CmdletBinding()]
@@ -1775,11 +1591,8 @@ function Log-Warning{
 }
 
 <#
-
 .SYNOPSIS
-
 Appends the error text passed in to a log file throws an exception.
-
 #>
 function Log-Throw{
 [CmdletBinding()]
